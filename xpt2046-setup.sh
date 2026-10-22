@@ -31,6 +31,18 @@ SWAPAXES=1
 log()  { printf '==> %s\n' "$*"; }
 warn() { printf 'WARN: %s\n' "$*" >&2; }
 die()  { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+
+enable_community() {  # Alpine: make sure the community repo is enabled
+  [ -f /etc/apk/repositories ] || return 0
+  grep -qE '^[^#].*/community' /etc/apk/repositories && return 0
+  echo "==> Enabling Alpine community repository..."
+  sed -i -E 's|^#(.*/community)$|\1|' /etc/apk/repositories
+  if ! grep -qE '^[^#].*/community' /etc/apk/repositories; then
+    main=$(grep -E '^[^#].*/main$' /etc/apk/repositories | head -n1)
+    [ -n "$main" ] && echo "${main%/main}/community" >> /etc/apk/repositories
+  fi
+  apk update
+}
 has_mod() { find /lib/modules -name "$1" 2>/dev/null | grep -q .; }
 
 while getopts "o:r:s:f:p:uh" opt; do
@@ -132,8 +144,9 @@ fi
 log "Installing packages..."
 case "$OS" in
   alpine)
+    enable_community
     apk add --no-cache ca-certificates \
-      xorg-server xinit xf86-video-fbdev xf86-input-evdev eudev
+      xorg-server xinit xf86-video-fbdev xf86-input-evdev eudev kbd terminus-font
     apk add --no-cache xinput_calibrator >/dev/null 2>&1 || \
       warn "xinput_calibrator not available; install it later for touch tuning."
     setup-devd udev >/dev/null 2>&1 || true
@@ -142,7 +155,7 @@ case "$OS" in
     apt-get update
     DEBIAN_FRONTEND=noninteractive apt-get install -y \
       ca-certificates xserver-xorg xinit \
-      xserver-xorg-video-fbdev xserver-xorg-input-evdev
+      xserver-xorg-video-fbdev xserver-xorg-input-evdev kbd console-setup
     DEBIAN_FRONTEND=noninteractive apt-get install -y xinput-calibrator >/dev/null 2>&1 || \
       warn "xinput-calibrator not available; install it later for touch tuning."
     ;;
