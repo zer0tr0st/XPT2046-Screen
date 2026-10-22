@@ -31,6 +31,18 @@ TMP=$(mktemp 2>/dev/null || echo "/tmp/pi-screen.$$")
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 
+enable_community() {  # Alpine: make sure the community repo is enabled
+  [ -f /etc/apk/repositories ] || return 0
+  grep -qE '^[^#].*/community' /etc/apk/repositories && return 0
+  echo "==> Enabling Alpine community repository..."
+  sed -i -E 's|^#(.*/community)$|\1|' /etc/apk/repositories
+  if ! grep -qE '^[^#].*/community' /etc/apk/repositories; then
+    main=$(grep -E '^[^#].*/main$' /etc/apk/repositories | head -n1)
+    [ -n "$main" ] && echo "${main%/main}/community" >> /etc/apk/repositories
+  fi
+  apk update
+}
+
 # ---------- helpers ----------
 row() {  # row LABEL VALUE [COLOR]
   _l=$(printf '%-6.6s' "$1")
@@ -208,6 +220,7 @@ install_svc() {
   detect_os
   echo "==> Installing packages ($OS)..."
   if [ "$OS" = alpine ]; then
+    enable_community
     apk add --no-cache kbd terminus-font iw
   else
     apt-get update
